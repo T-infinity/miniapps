@@ -1,11 +1,11 @@
 # Dependencies
 
-The hypersolve miniapp requires:
+The HyperSolve miniapp requires:
 
 - C++11 compliant compiler (we currently test with gcc v7.3.0, and the intel 2017 compiler)
 - the [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) package
 
-# How to compile the hypersolve miniapp:
+# How to compile the HyperSolve miniapp:
 
 ```
 cd hypersolve-miniapp
@@ -16,13 +16,13 @@ cmake -DCMAKE_INSTALL_PREFIX=<install/path> -DCMAKE_CXX_FLAGS="-O3" ..
 make install
 ```
 
-# How to run the hypersolve miniapp
+# How to run the HyperSolve miniapp
 
 ```
 HyperSolveMiniApp <number of cells to loop>
 ```
 
-# hypersolve miniapp example timings:
+# HyperSolve miniapp example timings:
 ```
 1e7  cells:   0m26.601s
 1e8  cells:   4m24.329s
