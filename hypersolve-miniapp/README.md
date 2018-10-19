@@ -3,7 +3,7 @@
 The hypersolve miniapp requires:
 
 - C++11 compliant compiler (we currently test with gcc v7.3.0, and the intel 2017 compiler)
-- the (Eigen)[http://eigen.tuxfamily.org/index.php?title=Main_Page] package
+- the [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page) package
 
 # How to compile the hypersolve miniapp:
 
