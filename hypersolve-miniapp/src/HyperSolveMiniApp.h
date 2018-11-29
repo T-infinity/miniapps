@@ -22,27 +22,24 @@
 
 #pragma once
 
+#include "Tensor.h"
 #include "Point.h"
-#include <Eigen/Dense>
 
 namespace HS {
     template<typename T>
-    inline Eigen::Matrix<T, 3, 3>
-    calcSij(const Eigen::Matrix<T, 3, 1> &grad_u,
-            const Eigen::Matrix<T, 3, 1> &grad_v,
-            const Eigen::Matrix<T, 3, 1> &grad_w) {
-        Eigen::Matrix<T, 3, 3> Sij;
-
-        // Need for operator(*) with Ddata
-        T half(0.5);
+    inline Tensor<T, 3, 3>
+    calcSij(const Point<T> &grad_u,
+            const Point<T> &grad_v,
+            const Point<T> &grad_w){
+        Tensor<T, 3, 3> Sij;
 
         Sij(0, 0) = grad_u[0];
-        Sij(0, 1) = half * (grad_u[1] + grad_v[0]);
-        Sij(0, 2) = half * (grad_u[2] + grad_w[0]);
+        Sij(0, 1) = 0.5 * (grad_u[1] + grad_v[0]);
+        Sij(0, 2) = 0.5 * (grad_u[2] + grad_w[0]);
 
-        Sij(1, 0) = Sij(0, 1);
+        Sij(1, 0) = Sij(0,1);
         Sij(1, 1) = grad_v[1];
-        Sij(1, 2) = half * (grad_v[2] + grad_w[1]);
+        Sij(1, 2) = 0.5 * (grad_v[2] + grad_w[1]);
 
         Sij(2, 0) = Sij(0, 2);
         Sij(2, 1) = Sij(1, 2);
@@ -52,13 +49,19 @@ namespace HS {
     }
 
     template<typename T>
-    Eigen::Matrix<T, 3, 3>
-    calcSijBar(const Eigen::Matrix<T, 3, 3>& Sij) {
-        T trace_div_3 = Sij.trace() / 3.0;
-        Eigen::Matrix<T, 3, 3> SijBar = Sij;
-        for (int i = 0; i < 3; ++i)
-            SijBar(i,i) -= trace_div_3;
-        return SijBar;
+    inline Tensor<T, 3, 3>
+    getKroneckerDelta(){
+        Tensor<T, 3, 3> delta;
+        delta(0,0) = 1.0;
+        delta(1,1) = 1.0;
+        delta(2,2) = 1.0;
+        return delta;
+    };
+
+    template<typename T>
+    inline Tensor<T, 3, 3>
+    calcSijBar(const Tensor<T, 3, 3>& Sij) {
+        return (Sij - (Sij.trace() / 3.0) * getKroneckerDelta<T>());
     };
 
     template<size_t n_corners, size_t NumEqns, size_t n_edges, typename T>
@@ -73,41 +76,29 @@ namespace HS {
                             const T& viscosity_avg,
                             const HS::Point<T>& uvw_viscosity_avg) {
 
-        using namespace Eigen;
-
-        Matrix<T, 3, 1> ugrad, vgrad, wgrad, tgrad;
-        Matrix<T, 3, 1> uvw_viscosity, normal;
-        Matrix<T, 3, 1> heat_flux, momentum_fluxes;
-        Matrix<T, 3, 1> energy_stress, energy_eqn_terms;
-        Matrix<T, 3, 3> Sij, Sij_bar, tau;
+        Tensor<T, 3, 3> Sij, Sij_bar, tau;
 
         std::array<std::array<T, NumEqns>, n_corners> flux;
         for (auto &f : flux)
             for (auto &value : f)
                 value = 0.0;
 
-        uvw_viscosity << uvw_viscosity_avg[0], uvw_viscosity_avg[1], uvw_viscosity_avg[2];
-
         for (size_t edge = 0; edge < n_edges; ++edge) {
 
-            ugrad << edge_ugrad[edge][0], edge_ugrad[edge][1], edge_ugrad[edge][2];
-            vgrad << edge_vgrad[edge][0], edge_vgrad[edge][1], edge_vgrad[edge][2];
-            wgrad << edge_wgrad[edge][0], edge_wgrad[edge][1], edge_wgrad[edge][2];
-            tgrad << edge_tgrad[edge][0], edge_tgrad[edge][1], edge_tgrad[edge][2];
+            Sij = HS::calcSij(edge_ugrad[edge], edge_vgrad[edge], edge_wgrad[edge]);
+            Sij_bar = HS::calcSijBar(Sij);
+            tau = viscosity_avg * 2.0 * Sij_bar;
 
-            Sij.noalias() = HS::calcSij(ugrad, vgrad, wgrad);
-            Sij_bar.noalias() = HS::calcSijBar(Sij);
-            tau.noalias() = viscosity_avg * 2.0 * Sij_bar;
+            auto heat_flux = thermal_conductivity_avg * edge_tgrad[edge];
+            auto energy_stress = T(2.0) * Sij_bar * uvw_viscosity_avg;
 
-            heat_flux.noalias() = thermal_conductivity_avg * tgrad;
-            energy_stress.noalias() = T(2.0) * Sij_bar * uvw_viscosity;
+            auto energy_eqn_terms = heat_flux + energy_stress;
 
-            energy_eqn_terms.noalias() = heat_flux + energy_stress;
-
-            normal << T(edge_normals[edge][0]), T(edge_normals[edge][1]), T(edge_normals[edge][2]);
-            momentum_fluxes.noalias() = tau * normal;
-            T energy_flux = (energy_eqn_terms.transpose() * normal)(0,0);
-            std::array<T, 4> edge_flux = {momentum_fluxes(0,0), momentum_fluxes(1,0), momentum_fluxes(2,0), energy_flux};
+            auto momentum_fluxes = tau * edge_normals[edge];
+            T energy_flux = energy_eqn_terms[0] * edge_normals[edge][0]
+                          + energy_eqn_terms[1] * edge_normals[edge][1]
+                          + energy_eqn_terms[2] * edge_normals[edge][2];
+            std::array<T, 4> edge_flux = {momentum_fluxes[0], momentum_fluxes[1], momentum_fluxes[2], energy_flux};
 
             int left_node = edge_to_node[edge][0];
             int right_node = edge_to_node[edge][1];

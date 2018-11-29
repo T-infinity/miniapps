@@ -48,6 +48,10 @@ namespace HS {
                          point2[0] * point1[2] - point1[0] * point2[2],
                          point1[0] * point2[1] - point2[0] * point1[1]);
         }
+
+        static T dot(const Point<T> &point1, const Point<T> &point2) {
+            return point1[0] * point2[0] + point1[1] * point2[1] + point1[2] * point2[2];
+        }
     };
 }
 
