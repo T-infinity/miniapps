@@ -1,23 +1,45 @@
 #include "Element.h"
 #include "HyperSolveMiniApp.h"
 #include "Ddata.h"
+#include "TetMesh.h"
 
-template<typename T, size_t NumEqns, size_t NCorners>
-using CornerSolution = std::array<std::array<T, NumEqns>, NCorners>;
+namespace HS {
+    template<typename T, size_t NumEqns>
+    using Solution = std::vector<std::array<T, NumEqns>>;
+    template<typename T, size_t NumEqns>
+    using Residual = std::vector<std::array<T, NumEqns>>;
+}
+
+template <typename ResidualType>
+void zeroResidual(ResidualType& residual) {
+    for (auto& res : residual)
+        for (auto& R : res)
+            R = 0.0;
+}
+
+void monitorCellLoop(size_t cell_id, size_t max_cells) {
+    cell_id += 1;
+    if (cell_id % (max_cells/10) == 0) {
+        auto percent_done = cell_id * 100 / max_cells;
+        printf("[%3lu%%]  looping cell: %lu of %lu\n", percent_done, cell_id, max_cells);
+    }
+}
 
 template<typename T>
-std::array<std::array<T, 5>, 4> LoopCellFlux(long max_cells) {
-    std::array<double, 5> q0 = {2.0, 0.25, 0.1, 0.1, 0.767};
+void LoopCellFlux(HS::Residual<T, 5>& residual, size_t cell_id,
+                  const HS::Solution<double, 5> &solution, const HS::TetMesh &mesh) {
+    std::array<int, 4> cell_node_ids;
+    mesh.getCellNodeIds(cell_node_ids.data(), cell_id);
+
     std::array<std::array<T, 5>, 4> q;
     for (int corner = 0; corner < 4; ++corner)
         for (int eqn = 0; eqn < 5; ++eqn)
-            q[corner][eqn] = q0[eqn];
+            q[corner][eqn] = solution[cell_node_ids[corner]][eqn];
 
     std::array<HS::Point<double>, 4> node_xyz;
-    node_xyz[0] = {0.0, 0.0, 0.0};
-    node_xyz[1] = {1.0, 0.0, 0.0};
-    node_xyz[2] = {0.0, 1.0, 0.0};
-    node_xyz[3] = {0.0, 0.0, 1.0};
+    for (int corner = 0; corner < 4; ++corner) {
+        mesh.getXYZ(node_xyz[corner].data(), cell_node_ids[corner]);
+    }
 
     auto edge_normals = HS::Element::Tet::calcDualNormals(node_xyz);
 
@@ -42,25 +64,18 @@ std::array<std::array<T, 5>, 4> LoopCellFlux(long max_cells) {
     uvw_viscosity_avg[1] = 1.1;
     uvw_viscosity_avg[2] = 1.2;
 
-    std::array<std::array<T, 5>, 4> flux;
-    int index = -1;
-    int percent_done = 0;
-    for (long i = 0; i < max_cells; ++i) {
-        index++;
-        if (index == (max_cells / 10)) {
-            percent_done += 10;
-            printf("[%d%%]  looping cell: %lu of %lu\n", percent_done, i, max_cells);
-            index = 0;
+    auto flux = HS::ElementBasedViscousFlux<4, 5>(HS::Element::Tet::edge_to_node,
+                                                  edge_normals,
+                                                  edge_ugrad, edge_vgrad, edge_wgrad, edge_tgrad,
+                                                  thermal_conductivity_avg,
+                                                  viscosity_avg,
+                                                  uvw_viscosity_avg);
+    for (int corner_node = 0; corner_node < 4; ++corner_node) {
+        int corner_node_id = cell_node_ids[corner_node];
+        for (int eqn = 0; eqn < 5; ++eqn) {
+            residual[corner_node_id][eqn] += flux[corner_node][eqn];
         }
-        flux = HS::ElementBasedViscousFlux<4, 5>(HS::Element::Tet::edge_to_node,
-                                                 edge_normals,
-                                                 edge_ugrad, edge_vgrad, edge_wgrad, edge_tgrad,
-                                                 thermal_conductivity_avg,
-                                                 viscosity_avg,
-                                                 uvw_viscosity_avg);
     }
-    printf("[%d%%] looping cell: %lu of %lu\n", 100, max_cells, max_cells);
-    return flux;
 }
 
 int main(int argc, char *argv[]) {
@@ -70,10 +85,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     std::string arg = argv[1];
-    long max_cells;
+    size_t max_cells;
     try {
         std::size_t pos;
-        max_cells = long(std::stod(arg, &pos));
+        max_cells = size_t(std::stod(arg, &pos));
         if (pos < arg.size()) {
             std::cerr << "Trailing characters after number: " << arg << '\n';
             return 1;
@@ -88,13 +103,31 @@ int main(int argc, char *argv[]) {
 
     printf("Loop over %lu cells.\n", max_cells);
 
+    auto tet_mesh = HS::TetMesh(max_cells);
+
+    std::array<double, 5> q0 = {2.0, 0.25, 0.1, 0.1, 0.767};
+    HS::Solution<double, 5> solution(tet_mesh.getNodeCount(), q0);
+
+    typedef Linearize::Ddata<double, 5> ddt;
+    HS::Residual<double, 5> real_residual(tet_mesh.getNodeCount());
+    HS::Residual<ddt, 5> ddt_residual(tet_mesh.getNodeCount());
+
     printf("RHS:\n");
-    auto real_flux = LoopCellFlux<double>(max_cells);
+    zeroResidual(real_residual);
+    for (size_t cell_id = 0; cell_id < tet_mesh.getCellCount(); ++cell_id) {
+        LoopCellFlux<double>(real_residual, cell_id, solution, tet_mesh);
+        monitorCellLoop(cell_id, max_cells);
+    }
     printf("LHS:\n");
-    auto ddt_flux = LoopCellFlux<Linearize::Ddata<double, 5>>(max_cells);
-    for (int corner = 0; corner < 4; ++corner) {
+    zeroResidual(ddt_residual);
+    for (size_t cell_id = 0; cell_id < tet_mesh.getCellCount(); ++cell_id) {
+        LoopCellFlux<ddt>(ddt_residual, cell_id, solution, tet_mesh);
+        monitorCellLoop(cell_id, max_cells);
+    }
+
+    for (size_t node_id = 0; node_id < tet_mesh.getNodeCount(); ++node_id) {
         for (int eqn = 0; eqn < 5; ++eqn) {
-            double difference = std::fabs(real_flux[corner][eqn] - ddt_flux[corner][eqn].value);
+            double difference = std::fabs(real_residual[node_id][eqn] - ddt_residual[node_id][eqn].value);
             if (difference > 1.e-15) return 1;
         }
     }

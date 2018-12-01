@@ -13,6 +13,12 @@ namespace HS {
             coordinates[1] = y;
             coordinates[2] = z;
         }
+        T* data() {
+            return coordinates.data();
+        }
+        const T* data() const {
+            return coordinates.data();
+        }
         T& operator[](int index) {
             return coordinates[index];
         }

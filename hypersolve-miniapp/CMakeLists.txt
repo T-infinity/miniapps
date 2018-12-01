@@ -2,11 +2,15 @@ cmake_minimum_required(VERSION 3.6)
 project(HyperSolveMiniApp)
 set(CMAKE_CXX_STANDARD 11)
 
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-int-in-bool-context")
+endif()
+
 set(MINIAPP_HEADERS
         src/Element.h
         src/Ddata.h
         src/HyperSolveMiniApp.h
-        src/Point.h)
+        src/Point.h src/TetMesh.h)
 
 find_package(Eigen3 REQUIRED)
 
