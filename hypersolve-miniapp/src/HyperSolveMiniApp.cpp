@@ -22,17 +22,8 @@ std::array<std::array<T, 5>, 4> LoopCellFlux(long max_cells) {
     auto edge_normals = HS::Element::Tet::calcDualNormals(node_xyz);
 
     auto one = T(1.0);
-    HS::Point<T> mock_grad(one, one, one);
-    HS::Point<T> ugrad = mock_grad;
-    HS::Point<T> vgrad = mock_grad;
-    HS::Point<T> wgrad = mock_grad;
-    HS::Point<T> tgrad = mock_grad;
-
-    std::array<HS::Point<T>, 6> edge_ugrad, edge_vgrad, edge_wgrad, edge_tgrad;
-    edge_ugrad.fill(ugrad);
-    edge_vgrad.fill(vgrad);
-    edge_wgrad.fill(wgrad);
-    edge_tgrad.fill(tgrad);
+    std::array<T, 6> mock_grad = {one, one, one, one, one, one};
+    auto edge_gradients = HS::EdgeGradients<T, 6>(mock_grad);
 
     // Hardcoded to avoid thermodynamics dependency
     T viscosity_avg(0.01);
@@ -54,7 +45,7 @@ std::array<std::array<T, 5>, 4> LoopCellFlux(long max_cells) {
         }
         flux = HS::ElementBasedViscousFlux<4, 5>(HS::Element::Tet::edge_to_node,
                                                  edge_normals,
-                                                 edge_ugrad, edge_vgrad, edge_wgrad, edge_tgrad,
+                                                 edge_gradients,
                                                  thermal_conductivity_avg,
                                                  viscosity_avg,
                                                  uvw_viscosity_avg);
