@@ -6,6 +6,7 @@ set(MINIAPP_HEADERS
         src/Element.h
         src/Ddata.h
         src/HyperSolveMiniApp.h
+        src/EdgeGradients.h
         src/Point.h)
 
 find_package(Eigen3 REQUIRED)
