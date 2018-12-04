@@ -23,9 +23,33 @@
 #pragma once
 
 #include "Point.h"
+#include "EdgeGradients.h"
 #include <Eigen/Dense>
 
 namespace HS {
+    template<typename T, size_t NumEdges>
+    inline Eigen::Matrix<T, 3, 3>
+    calcSij(const EdgeGradients<T, NumEdges>& grad, int edge) {
+        Eigen::Matrix<T, 3, 3> Sij;
+
+        // Need for operator(*) with Ddata
+        T half(0.5);
+
+        Sij(0, 0) = grad.ux[edge];
+        Sij(0, 1) = half * (grad.uy[edge] + grad.vx[edge]);
+        Sij(0, 2) = half * (grad.uz[edge] + grad.wx[edge]);
+
+        Sij(1, 0) = Sij(0, 1);
+        Sij(1, 1) = grad.vy[edge];
+        Sij(1, 2) = half * (grad.vz[edge] + grad.wy[edge]);
+
+        Sij(2, 0) = Sij(0, 2);
+        Sij(2, 1) = Sij(1, 2);
+        Sij(2, 2) = grad.wz[edge];
+
+        return Sij;
+    }
+
     template<typename T>
     inline Eigen::Matrix<T, 3, 3>
     calcSij(const Eigen::Matrix<T, 3, 1> &grad_u,
@@ -65,17 +89,14 @@ namespace HS {
     std::array<std::array<T, NumEqns>, n_corners>
     ElementBasedViscousFlux(const std::array<std::array<int, 2>, n_edges>& edge_to_node,
                             const std::array<HS::Point<double>, n_edges> &edge_normals,
-                            const std::array<HS::Point<T>, n_edges> &edge_ugrad,
-                            const std::array<HS::Point<T>, n_edges> &edge_vgrad,
-                            const std::array<HS::Point<T>, n_edges> &edge_wgrad,
-                            const std::array<HS::Point<T>, n_edges> &edge_tgrad,
+                            const HS::EdgeGradients<T, n_edges> &edge_gradients,
                             const T& thermal_conductivity_avg, // pass directly because prandtl number might be different for turbulence
                             const T& viscosity_avg,
                             const HS::Point<T>& uvw_viscosity_avg) {
 
         using namespace Eigen;
 
-        Matrix<T, 3, 1> ugrad, vgrad, wgrad, tgrad;
+        Matrix<T, 3, 1> tgrad;
         Matrix<T, 3, 1> uvw_viscosity, normal;
         Matrix<T, 3, 1> heat_flux, momentum_fluxes;
         Matrix<T, 3, 1> energy_stress, energy_eqn_terms;
@@ -90,12 +111,9 @@ namespace HS {
 
         for (size_t edge = 0; edge < n_edges; ++edge) {
 
-            ugrad << edge_ugrad[edge][0], edge_ugrad[edge][1], edge_ugrad[edge][2];
-            vgrad << edge_vgrad[edge][0], edge_vgrad[edge][1], edge_vgrad[edge][2];
-            wgrad << edge_wgrad[edge][0], edge_wgrad[edge][1], edge_wgrad[edge][2];
-            tgrad << edge_tgrad[edge][0], edge_tgrad[edge][1], edge_tgrad[edge][2];
+            tgrad << edge_gradients.tx[edge], edge_gradients.ty[edge], edge_gradients.tz[edge];
 
-            Sij.noalias() = HS::calcSij(ugrad, vgrad, wgrad);
+            Sij.noalias() = HS::calcSij(edge_gradients, edge);
             Sij_bar.noalias() = HS::calcSijBar(Sij);
             tau.noalias() = viscosity_avg * 2.0 * Sij_bar;
 

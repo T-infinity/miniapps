@@ -10,7 +10,9 @@ set(MINIAPP_HEADERS
         src/Element.h
         src/Ddata.h
         src/HyperSolveMiniApp.h
-        src/Point.h src/TetMesh.h)
+        src/Point.h
+        src/TetMesh.h
+        src/EdgeGradients.h)
 
 find_package(Eigen3 REQUIRED)
 
