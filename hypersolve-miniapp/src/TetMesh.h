@@ -56,7 +56,7 @@ namespace HS {
                 cell_node_ids[cell_id][0] = i++;
                 cell_node_ids[cell_id][1] = i++;
                 cell_node_ids[cell_id][2] = i++;
-                cell_node_ids[cell_id][4] = i++;
+                cell_node_ids[cell_id][3] = i++;
             }
             return cell_node_ids;
         }
