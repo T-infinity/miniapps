@@ -149,5 +149,17 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    for (size_t node_id = 0; node_id < tet_mesh.getNodeCount(); ++node_id) {
+        for (int eqn = 0; eqn < 5; ++eqn) {
+            double difference = std::fabs(real_residual[node_id][eqn] - ddt_residual[node_id][eqn].value);
+            if (difference > tolerance) {
+                printf("node: %lu eqn: %d RHS: %e LHS: %e\n", node_id, eqn, real_residual[node_id][eqn],
+                       ddt_residual[node_id][eqn].value);
+                printf("Error: RHS and LHS don't match!\n");
+                return 1;
+            }
+        }
+    }
+
     return 0;
 }
