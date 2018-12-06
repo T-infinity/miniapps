@@ -125,11 +125,29 @@ int main(int argc, char *argv[]) {
         monitorCellLoop(cell_id, max_cells);
     }
 
-    for (size_t node_id = 0; node_id < tet_mesh.getNodeCount(); ++node_id) {
-        for (int eqn = 0; eqn < 5; ++eqn) {
-            double difference = std::fabs(real_residual[node_id][eqn] - ddt_residual[node_id][eqn].value);
-            if (difference > 1.e-15) return 1;
+    std::array<std::array<double, 5>, 4> expected_residual_at_cell;
+    expected_residual_at_cell[0] = {0.0,  6.666666666667e-03,  6.666666666667e-03,  6.666666666667e-03,  2.250000000000e+00};
+    expected_residual_at_cell[1] = {0.0,  0.000000000000e+00, -3.333333333333e-03, -3.333333333333e-03, -7.833333333333e-01};
+    expected_residual_at_cell[2] = {0.0, -3.333333333333e-03,  0.000000000000e+00, -3.333333333333e-03, -7.500000000000e-01};
+    expected_residual_at_cell[3] = {0.0, -3.333333333333e-03, -3.333333333333e-03,  0.000000000000e+00, -7.166666666667e-01};
+
+    double tolerance = 1.e-12;
+    for (size_t cell_id = 0; cell_id < tet_mesh.getCellCount(); ++cell_id) {
+        std::array<int, 4> cell_node_ids;
+        tet_mesh.getCellNodeIds(cell_node_ids.data(), cell_id);
+        for (int corner = 0; corner < 4; ++corner) {
+            int node_id = cell_node_ids[corner];
+            for (int eqn = 0; eqn < 5; ++eqn) {
+                double real_difference = std::fabs(real_residual[node_id][eqn] - expected_residual_at_cell[corner][eqn]);
+                if (real_difference > tolerance) {
+                    printf("node: %d eqn: %d value: %e expected: %e\n", node_id, eqn, real_residual[node_id][eqn],
+                           expected_residual_at_cell[corner][eqn]);
+                    printf("Error: RHS difference: %e greater than tolerance: %e\n", real_difference, tolerance);
+                    return 1;
+                }
+            }
         }
     }
+
     return 0;
 }
