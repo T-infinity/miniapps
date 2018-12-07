@@ -6,15 +6,23 @@
 
 namespace HS {
     namespace Element {
+
+        template<size_t NumEdges>
+        struct EdgeNormals {
+            std::array<double, NumEdges> nx;
+            std::array<double, NumEdges> ny;
+            std::array<double, NumEdges> nz;
+        };
+
         template<size_t n_corners, size_t n_edges, size_t n_faces>
-        std::array<Point<double>, n_edges>
+        EdgeNormals<n_edges>
         calcCellDualNormals(const std::array<Point<double>, n_corners> &node_coordinates,
                             const std::array<std::array<int, 2>, n_edges> &edge_to_face,
                             const Point<double> &cell_center,
                             const std::array<Point<double>, n_edges> &edge_centers,
                             const std::array<Point<double>, n_faces> &face_centers) {
 
-            std::array<Point<double>, n_edges> edge_areas;
+            EdgeNormals<n_edges> edge_areas;
             for (size_t edge = 0; edge < n_edges; ++edge) {
                 auto cell_center_to_edge_midpoint = cell_center - edge_centers[edge];
 
@@ -26,7 +34,10 @@ namespace HS {
                 auto right_face_to_edge_midpoint = face_centers[right_face] - edge_centers[edge];
                 auto right_area = 0.5 * Point<double>::cross(cell_center_to_edge_midpoint, right_face_to_edge_midpoint);
 
-                edge_areas[edge] = left_area + right_area;
+                auto edge_area = left_area + right_area;
+                edge_areas.nx[edge] = edge_area[0];
+                edge_areas.ny[edge] = edge_area[1];
+                edge_areas.nz[edge] = edge_area[2];
             }
             return edge_areas;
         };
@@ -49,7 +60,7 @@ namespace HS {
                                                                                        {2, 1},
                                                                                        {3, 2}
                                                                                }};
-            inline std::array<Point<double>, 6>
+            inline EdgeNormals<6>
             calcDualNormals(std::array<Point<double>, 4> node_coordinates) {
                 Point<double> cell_center = 0.25 * (node_coordinates[0] + node_coordinates[1] +
                                                     node_coordinates[2] + node_coordinates[3]);

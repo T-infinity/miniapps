@@ -24,6 +24,7 @@
 
 #include "Point.h"
 #include "EdgeGradients.h"
+#include "Element.h"
 #include <Eigen/Dense>
 
 namespace HS {
@@ -88,11 +89,11 @@ namespace HS {
     template<size_t n_corners, size_t NumEqns, size_t n_edges, typename T>
     std::array<std::array<T, NumEqns>, n_corners>
     ElementBasedViscousFlux(const std::array<std::array<int, 2>, n_edges>& edge_to_node,
-                            const std::array<HS::Point<double>, n_edges> &edge_normals,
-                            const HS::EdgeGradients<T, n_edges> &edge_gradients,
+                            const Element::EdgeNormals<n_edges> &edge_normals,
+                            const EdgeGradients<T, n_edges> &edge_gradients,
                             const T& thermal_conductivity_avg, // pass directly because prandtl number might be different for turbulence
                             const T& viscosity_avg,
-                            const HS::Point<T>& uvw_viscosity_avg) {
+                            const Point<T>& uvw_viscosity_avg) {
 
         using namespace Eigen;
 
@@ -122,7 +123,7 @@ namespace HS {
 
             energy_eqn_terms.noalias() = heat_flux + energy_stress;
 
-            normal << T(edge_normals[edge][0]), T(edge_normals[edge][1]), T(edge_normals[edge][2]);
+            normal << T(edge_normals.nx[edge]), T(edge_normals.ny[edge]), T(edge_normals.nz[edge]);
             momentum_fluxes.noalias() = tau * normal;
             T energy_flux = (energy_eqn_terms.transpose() * normal)(0,0);
             std::array<T, 4> edge_flux = {momentum_fluxes(0,0), momentum_fluxes(1,0), momentum_fluxes(2,0), energy_flux};
